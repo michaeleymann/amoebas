@@ -1,180 +1,173 @@
 let amoebas = [];
-let origin = [100,100];
-let numbAmoebas = 40;
-let minSpeed = .5;
-let maxSpeed = 2;
-let amoebaSize = 7;
-let pathSize = 3;
-let randomFactor = 0.7;
-let pathLength = 30;
-let lightSize = 7;
-let blink = 0;
-let maxHungry=200;
 let food = [];
-let targetDistance=2;
-let hungryAmoebas = 0;
+let hunting;
+let generations = 1;
 
+// GAME VARIABLES
+let numbAmoebas = 22;
+let minSpeed = 0.3;
+let maxSpeed = 1.3;
+let amoebaSize = 7;
+let lightSize = 7;
+let randomFactor = 0.9;
+let targetDistance = 4;
+let maxHungry = 200;
+let numbFood = 5;
+let reproductionAge = 800;
+let foodPackages = 10;
+
+//DEFIINE CLASSES
+class Amoeba {
+  constructor(a,b){
+    this.x = a,
+    this.y = b, 
+    this.color = [255,0,120],
+    this.movement = {x: random(minSpeed,maxSpeed)*(random()<0.5?1:-1),
+                     y: random(minSpeed,maxSpeed)*(random()<0.5?1:-1)},
+    this.lastPos = {x: this.x, y: this.y}
+    this.target = {}, // Momentary target, x. and y.
+    this.oldDistance = 0;
+    this.targets = [], // Array with Distances to targets
+    this.hungry = 0;
+    this.age = 0;
+    }
+  show(){
+    fill(this.color);
+    rect(this.x, this.y, amoebaSize, amoebaSize);
+  }
+  run(){
+    this.lastPos = {x: this.x, y: this.y};
+    this.x += this.movement.x;
+    this.y += this.movement.y;
+  }
+  tumble(){
+    this.movement = { x: random(minSpeed,maxSpeed)*(random()<0.5?1:-1),
+                      y: random(minSpeed,maxSpeed)*(random()<0.5?1:-1)}
+  }
+  move(){
+    this.run();
+    if (dist(this.x,this.y,this.target.x,this.target.y) 
+        > dist(this.lastPos.x,this.lastPos.y,this.target.x,this.target.y)
+        || random() > randomFactor){
+      this.tumble(); // Amoeba tries to move towards target, tumbles if moving away. Some randomness.
+    }
+  }
+  setTarget(){
+    if (food.length>0){
+      for (let i = 0; i < food.length; i++){
+        this.targets.push(dist(this.x,this.y,food[i].x,food[i].y));
+      }
+      this.target = {x: food[findMin(this.targets)].x, y: food[findMin(this.targets)].y};
+      hunting = true;
+    } else {
+      this.target = {x: mouseX, y: mouseY};
+      hunting = false;
+    }
+  }
+  eat(){
+    this.color = [255-this.hungry,0,120];
+    if (dist(this.x,this.y,this.target.x,this.target.y)<targetDistance && hunting){
+      food.splice(findMin(this.targets),1);
+      this.hungry = 0;
+    }
+  }
+  reproduce(){
+    if (this.age > reproductionAge){
+      amoebas.push(new Amoeba(this.x,this.y))
+      this.age = 0;
+    }
+    
+  }
+  beAmoeba(){
+    this.targets = [];
+    this.show();
+    this.setTarget();
+    this.eat();
+    this.move();
+    this.reproduce();
+  }
+}
+class Food {
+  constructor(xPos,yPos){
+    this.x = xPos + random()*50 - random()*50,
+    this.y = yPos + random()*50 - random()*50
+  }
+  show(){
+    fill(122,255,123,sin(frameCount/5)*50+150);
+    rect(this.x, this.y, lightSize, lightSize);
+    }
+}
+
+
+/// FUNCTION DEFINITIONS
+function findMin(a){
+  return a.indexOf(Math.min.apply(Math, a));
+}
+function createAmoebas(){
+  for (let i=0; i<numbAmoebas; i++){
+    amoebas.push(new Amoeba(random(100,200),random(100,200)));
+  }
+}
+function createFood(a,b){
+  if (foodPackages > 0){
+    for (i = 0; i < numbFood; i++){
+      food.push(new Food(a,b));
+    }
+    foodPackages -= 1;
+  }
+}
+function mousePressed(){
+  if (amoebas.length>0){
+    createFood(mouseX,mouseY);
+  } else {
+    createAmoebas(); 
+  }
+}
+
+// P5 SETUP
 function setup(){
   createCanvas(windowWidth,windowHeight);
   noStroke();
   noCursor();
-  drawAmoebas();
-  // Create Swarm of Amoebas
-
+  createAmoebas();
 }
 
-
-function drawAmoebas(){
-  for (i=0; i<numbAmoebas; i+=1){
-    // Single Amoeba Object 
-    let myAmoeba = {
-    x: origin[0], // start X
-    y: origin[1], // start Y
-    color: [0,255,120],
-    move: [random(minSpeed,maxSpeed),random(minSpeed,maxSpeed)], // movement vector
-    path: [], //history of past positions
-    hungry: round(random(0,8),0),
-    targetX: mouseX,
-    targetY: mouseY,
-    targets: []
-    }
-    amoebas.push(myAmoeba)
-  }
-}
-// Define a new movement vector
-function tumble(amoeba){
-  amoeba.move[0] = random(-maxSpeed,maxSpeed),random(-maxSpeed,maxSpeed);
-  amoeba.move[1] = random(-maxSpeed,maxSpeed),random(-maxSpeed,maxSpeed);
-}
-
-// Amoeba moves as defined by its movement vector
-function run(amoeba){
-  amoeba.x+=amoeba.move[0];
-  amoeba.y+=amoeba.move[1];
-}
-
-// Add Food 
-function mousePressed(){
-  if (amoebas.length>1){
-    food.push({x: mouseX, y: mouseY});
-  } else {
-    drawAmoebas();
-  }
-  
-}
-
-
-//Needed to find best target
-function findMin(a){
-  return a.indexOf(Math.min.apply(Math, a));
- }
-
-
-//Here comes the fun part
+//P5 DRAW LOOP
 function draw(){
+  //color setup
   blendMode(BLEND);
   background(56,54,60);
   blendMode(SCREEN);
-  
   //draw mouse cursor light
   fill(255,230,120,sin(frameCount/5)*50+150);
   rect(mouseX, mouseY, lightSize, lightSize);
 
-  //draw food
-  for (let i=0; i<food.length; i++){
-    let thisFood = food[i];
-    fill(122,255,123,sin(frameCount/5)*50+150);
-    rect(thisFood.x, thisFood.y, lightSize, lightSize);
-    console.log("I put some food at position x:"+ thisFood.x + " y: " + thisFood.y)
+  //Food
+  for (let i=0; i<food.length;i++){
+    food[i].show();
   }
 
-
-  // Loop through all the amoebas
-  for (let i=0; i<amoebas.length;i++) {
-    let thisAmoeba = amoebas[i];
-
-    //Temporally add mouse position to food array because it's a target, too
-    food.push({x: mouseX, y: mouseY});
-
-    //Set Amoeba Target && check if Amoeba
-    for (let i=0; i<food.length; i++){
-      let thisFood = food[i];
-      targetX=thisFood.x;
-      targetY=thisFood.y;
-      thisAmoeba.targets.push(dist(thisAmoeba.x,thisAmoeba.y,targetX,targetY));
+  //Amoebas
+  for (let i = 0; i < amoebas.length; i++){
+    amoebas[i].age += 1
+    amoebas[i].hungry += random();
+    amoebas[i].beAmoeba();
+    if (amoebas[i].hungry > maxHungry){
+      amoebas.splice(i,1);
     }
-  
-    // Set Ammoeba target to closets target in targets array
-    thisAmoeba.targetX = food[findMin(thisAmoeba.targets)].x;
-    thisAmoeba.targetY = food[findMin(thisAmoeba.targets)].y;
+  }
 
-    // Remove mouse position again from food array because it's not fucking food.
-    food.pop();
+  //Generation counter for score
+  if (amoebas.length > 0 && amoebas[0].age == reproductionAge){
+    generations += 1;
+  }
 
-    //See if this Amoeba ate something
-    if (dist(thisAmoeba.x,thisAmoeba.y,thisAmoeba.targetX,thisAmoeba.targetY)<targetDistance &&
-        dist(thisAmoeba.x,thisAmoeba.y,mouseX,mouseY)>targetDistance){
-        console.log(food);
-        food.splice(findMin(thisAmoeba.targets),1);
-        console.log("I spliced the foot array at position " + findMin(thisAmoeba.targets));
-        console.log(food);
-        thisAmoeba.hungry=0;
-    }
-    
-
-    // Distance from target at the moment
-    let oldDistance = dist(thisAmoeba.x,thisAmoeba.y,thisAmoeba.targetX,thisAmoeba.targetY)
-    
-    // Draw path of amoeba
-    for (let j = 0; j < thisAmoeba.path.length; j +=1){
-      fill(thisAmoeba.color);
-      rect(thisAmoeba.path[j].x, thisAmoeba.path[j].y, pathSize)
-    }
-    
-    // Draw this little Amoebey
-    fill(thisAmoeba.color);
-    rect(thisAmoeba.x,thisAmoeba.y,amoebaSize,amoebaSize);
-    run(thisAmoeba);
-
-    //Tumble or Run Descission
-    let newDistance=dist(thisAmoeba.x,thisAmoeba.y,thisAmoeba.targetX,thisAmoeba.targetY)
-    if (newDistance > oldDistance || random()>randomFactor){
-    tumble(thisAmoeba);
-    }
-
-    // Write current x,y to path
-    thisAmoeba.path.push({x: thisAmoeba.x, y: thisAmoeba.y})
-    if (thisAmoeba.path.length>pathLength){
-      thisAmoeba.path.shift();
-     } 
-
-
-    // Let amoeba get Hungry
-    if (frameCount % 10 == 0){
-     thisAmoeba.hungry++
-     thisAmoeba.color = [thisAmoeba.hungry*255/maxHungry,255-thisAmoeba.hungry*255/maxHungry,120-thisAmoeba.hungry*120/maxHungry];
-    }
-  
-   // Starve Amoebas
-   if (thisAmoeba.hungry == maxHungry){
-     amoebas.splice(i,1);
-   }
-
-   thisAmoeba.targets = [];
-   if (thisAmoeba.hungry > maxHungry/2){
-     hungryAmoebas++;
-   }
-
-  } // END OF AMOEBA LOOP 
-  
-// Score
-
-fill(250,120,120);
-textSize(15);
-textAlign(RIGHT);
-textFont("Courier New")
-text(amoebas.length +" of your amoebas are alive", width-25, 25);
-text(hungryAmoebas + " of your amoebas are very hungry", width-25,42)
-
-hungryAmoebas=0;
+  // Score
+  fill(250,120,120);
+  textSize(15);
+  textAlign(RIGHT);
+  textFont("Courier New");
+  text(amoebas.length +" amoebas are alive", width-25, 25);
+  text(foodPackages + " food packages left", width-25, 45);
+  text(generations + ". generation ", width-25, 65);
 } // END OF DRAW
